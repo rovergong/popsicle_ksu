@@ -1,4 +1,4 @@
-name: Module Build KowSU + SuSFS
+name: Module Build ReSukiSU + SuSFS
 
 on:
   workflow_call:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    name: KowSU + SuSFS 6.12.${{ inputs.sub_level }}
+    name: ReSukiSU + SuSFS 6.12.${{ inputs.sub_level }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     env:
@@ -63,49 +63,53 @@ jobs:
           SUSFS_DIR="${{ github.workspace }}/susfs4ksu"
           git clone --depth=1 --branch=gki-android16-6.12 https://gitlab.com/simonpunk/susfs4ksu "$SUSFS_DIR"
           echo "SUSFS_DIR=$SUSFS_DIR" >> $GITHUB_ENV
-          SUSFS_VERSION=$(grep -m1 'define SUSFS_VERSION' "$SUSFS_DIR/kernel_patches/fs/susfs.c" | sed 's/.*"\(.*\)"/\1/')
-          echo "SUSFS_VERSION=${SUSFS_VERSION:-unknown}" >> $GITHUB_ENV
 
-      - name: Setup KowSU
+      - name: 添加KernelSU
+        id: ksu_version
         run: |
-          cd kernel_workspace/common
-          rm -rf KernelSU drivers/kernelsu KernelSU-Next
-          git clone --depth=1 --branch=master https://github.com/KOWX712/KernelSU.git KernelSU
+         # 进入内核工作目录
+         cd kernel_workspace
+          if [[ ${{ github.event.inputs.ksu_type }} == "resukisu" ]]; then
+          echo "正在配置ReSukiSU..."
+          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/refs/heads/main/kernel/setup.sh" | bash -s main
+         echo 'CONFIG_KSU_FULL_NAME_FORMAT="%TAG_NAME%-%COMMIT_SHA%@cctv18"' >> ./common/arch/arm64/configs/gki_defconfig
+          cd ./KernelSU
+         # 生成自定义版本号（基于提交计数）, 失败时使用 114514
+           KSU_VERSION=$(expr $(git rev-list --count main) + 30700 2>/dev/null || echo 114514)
+         # 存储版本号到 GitHub 环境变量
+          echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
+          echo "ksuver=$KSU_VERSION" >> $GITHUB_OUTPUT
+          fi
 
-          ln -sf ../KernelSU/kernel drivers/kernelsu
-          grep -q "kernelsu" drivers/Makefile || echo 'obj-$(CONFIG_KSU) += kernelsu/' >> drivers/Makefile
-          grep -q "drivers/kernelsu/Kconfig" drivers/Kconfig || sed -i '/endmenu/i source "drivers/kernelsu/Kconfig"' drivers/Kconfig
-
-          # Standard header syncing for KowSU modular tree
-          cp -r KernelSU/uapi KernelSU/kernel/uapi 2>/dev/null || true
-          echo 'ccflags-y += -I$(srctree)/drivers/kernelsu' >> drivers/kernelsu/Makefile
-          mkdir -p include/uapi
-          cp -f KernelSU/kernel/policy/*.h include/uapi/ 2>/dev/null || true
-          cp -f KernelSU/kernel/policy/*.h include/ 2>/dev/null || true
-          cp -f KernelSU/kernel/include/*.h include/ 2>/dev/null || true
-          cp -f KernelSU/kernel/uapi/*.h include/uapi/ 2>/dev/null || true
-
-      - name: Apply Patches KowSU + SuSFS (10+50 Logic)
+      - name: 应用 KernelSU & SUSFS 补丁
+        if: inputs.susfs_enable
         run: |
-          cd kernel_workspace/common
-
-          # 1. Kernel-side SuSFS
-          cp "${{ env.SUSFS_DIR }}/kernel_patches/fs/susfs.c" fs/
-          cp "${{ env.SUSFS_DIR }}/kernel_patches/include/linux/susfs.h" include/linux/
-          cp "${{ env.SUSFS_DIR }}/kernel_patches/include/linux/susfs_def.h" include/linux/
-          patch -p1 < "${{ env.SUSFS_DIR }}/kernel_patches/50_add_susfs_in_gki-android16-6.12.patch"
-
-          # 2. KSU-side SuSFS
-          cd KernelSU
-          patch -p1 -l --fuzz=3 < "${{ github.workspace }}/.github/patches/kowsu/10_enable_susfs_for_ksu.patch"
-          #patch -p1 -l --fuzz=3 < "${{ github.workspace }}/.github/patches/kowsu/90_fix_susfs_symbols.patch"
+          cd kernel_workspace
+          if [[ ${{ github.event.inputs.ksu_type }} != "none" ]]; then
+            echo "正在添加susfs补丁..."
+            git clone --depth=1 https://github.com/cctv18/susfs4oki.git susfs4ksu -b oki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}
+            cp ./susfs4ksu/kernel_patches/50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch ./common/
+            cp ./susfs4ksu/kernel_patches/fs/* ./common/fs/
+            cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
+            cd ./common
+            patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
+            cd ..
+          else
+            echo "已选择无内置KernelSU模式，跳过susfs配置..."
+          fi
+          if [[ ${{ github.event.inputs.ksu_type }} == "ksu" ]]; then
+            echo "正在为原版 KernelSU (tiann/KernelSU)添加补丁..."
+            cp ./susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./KernelSU/
+            cd ./KernelSU
+            patch -p1 < 10_enable_susfs_for_ksu.patch || true
+          fi
 
       - name: Inject Defconfig Flags
         uses: ./.github/actions/kernel-config
         with:
           defconfig_path: "kernel_workspace/common/arch/arm64/configs/gki_defconfig"
           build_config_path: "kernel_workspace/common/build.config.gki"
-          variant: "kowsu+susfs"
+          variant: "resukisu"
           enable_susfs: "true"
 
       - name: Compile Kernel
@@ -116,15 +120,8 @@ jobs:
           export PATH="$WORKDIR/kernel_workspace/rust/bin:$PATH"
           export PATH="$WORKDIR/kernel_workspace/clang-tools:$PATH"
           
-          # 打印编译器信息
-          echo "Clang version: $(clang --version | head -1)"
-          echo "Rustc version: $(rustc -V 2>/dev/null | head -1)"
-          echo "Bindgen version: $(bindgen --version 2>/dev/null | head -1)"
-          echo "pahole version: $(pahole --version 2>/dev/null | head -1 || echo '未安装')"
-          
           cd kernel_workspace/common
           
-          # 路径重映射
           COMMON_REAL_PATH=$(pwd -P)
           ROOT_REAL_PATH=$(dirname "$COMMON_REAL_PATH")
           KCFLAGS=" -fdebug-prefix-map=$ROOT_REAL_PATH=."
@@ -133,7 +130,6 @@ jobs:
           KCFLAGS+=" -no-canonical-prefixes -O2 -pipe -Wno-error -fno-stack-protector -D__ANDROID_COMMON_KERNEL__"
           export KCFLAGS
           
-          # 配置工具链
           export LLVM=1
           export LLVM_IAS=1
           export ARCH=arm64
@@ -150,46 +146,30 @@ jobs:
           export READELF=llvm-readelf
           export STRIP=llvm-strip
           
-          # 设置环境脚本
-          cp ${{ github.workspace }}/_setup_env.sh ./ 2>/dev/null || true
-          chmod 777 ./*.sh 2>/dev/null || true
-          source "./_setup_env.sh" 2>/dev/null || true
-          
-          # 固定时间戳
           export SOURCE_DATE_EPOCH=1757653061
           export KBUILD_BUILD_TIMESTAMP="Fri Sep 12 04:57:41 UTC 2025"
           export KBUILD_BUILD_HOST="build-host"
           export KBUILD_BUILD_USER="kleaf"
           
-          # 清理空间
-          sudo rm -rf /usr/share/dotnet &
-          sudo rm -rf /usr/local/lib/android &
-          sudo rm -rf /opt/ghc &
-          sudo rm -rf /opt/hostedtoolcache/CodeQL &
-          
           make -j$(nproc --all) O=out gki_defconfig
           make -j$(nproc --all) O=out Image
-          
-          echo "内核编译完成！"
-          echo "编译后空间:"
-          df -h
 
       - name: Package & Boot-Ready Check
         run: |
           cd kernel_workspace
           IMAGE="./common/out/arch/arm64/boot/Image"
-          [ -f "$IMAGE" ] || (echo " Image binary missing!" && exit 1)
+          [ -f "$IMAGE" ] || exit 1
 
           git clone https://github.com/yapixel/AnyKernel3 --depth=1
-          cp "$IMAGE" ./AnyKernel3/ && cd AnyKernel3
+          cp "$IMAGE" AnyKernel3/ && cd AnyKernel3
 
           BUILD_DATE="$(date +'%y%m%d')"
-          ZIP_NAME="kowsu-susfs_popsicle_6.12.${{ inputs.sub_level }}-${BUILD_DATE}.zip"
+          ZIP_NAME="resukisu-susfs_popsicle_6.12.${{ inputs.sub_level }}-${BUILD_DATE}.zip"
           zip -r9 "../$ZIP_NAME" *
           echo "ZIP_NAME=$ZIP_NAME" >> $GITHUB_ENV
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v7.0.0
         with:
-          name: kernel-kowsu-susfs
+          name: kernel-resukisu-susfs
           path: kernel_workspace/${{ env.ZIP_NAME }}
