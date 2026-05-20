@@ -37,7 +37,8 @@ jobs:
           mkdir -p kernel_workspace && cd kernel_workspace 
           
           # 内核源码
-          aria2c -s16 -x16 -k1M "https://github.com/yapixel/gki-build-assets/releases/download/android16-6.12-2025-06/android16-6.12-2025-06.tar.gz" -o common.tar.gz
+          #aria2c -s16 -x16 -k1M "https://github.com/yapixel/gki-build-assets/releases/download/android16-6.12-2025-06/android16-6.12-2025-06.tar.gz" -o common.tar.gz
+          aria2c -s16 -x16 -k1M "https://github.com/rovergong/gki-build/releases/download/gki-6.12-latest/gki-6.12-6c9833506661b564ae3bedd6378ff80a3718e256.tar.gz" -o common.tar.gz
           mkdir -p common && tar -xzf common.tar.gz -C common && rm common.tar.gz
           
           # Clang
