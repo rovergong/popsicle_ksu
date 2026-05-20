@@ -64,7 +64,7 @@ jobs:
           git clone --depth=1 --branch=gki-android16-6.12 https://gitlab.com/simonpunk/susfs4ksu "$SUSFS_DIR"
           echo "SUSFS_DIR=$SUSFS_DIR" >> $GITHUB_ENV
 
-        - name: 添加KernelSU
+      - name: 添加KernelSU
         id: ksu_version
         run: |
           # 进入内核工作目录
@@ -96,7 +96,6 @@ jobs:
           
           cd ./common
           patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
-
 
       - name: Inject Defconfig Flags
         uses: ./.github/actions/kernel-config
@@ -153,10 +152,8 @@ jobs:
           cd kernel_workspace
           IMAGE="./common/out/arch/arm64/boot/Image"
           [ -f "$IMAGE" ] || exit 1
-
           git clone https://github.com/yapixel/AnyKernel3 --depth=1
           cp "$IMAGE" AnyKernel3/ && cd AnyKernel3
-
           BUILD_DATE="$(date +'%y%m%d')"
           ZIP_NAME="resukisu-susfs_popsicle_6.12.${{ inputs.sub_level }}-${BUILD_DATE}.zip"
           zip -r9 "../$ZIP_NAME" *
