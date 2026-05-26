@@ -87,8 +87,8 @@ jobs:
         run: |
           cd kernel_workspace/common
 
-          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/refs/heads/main/kernel/setup.sh" | bash -s main
-          echo 'CONFIG_KSU_FULL_NAME_FORMAT="%TAG_NAME%-%COMMIT_SHA%"' >> ./common/arch/arm64/configs/gki_defconfig
+          #curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/refs/heads/main/kernel/setup.sh" | bash -s main
+          git clone --branch=main https://github.com/ReSukiSU/ReSukiSU.git KernelSU
           
           ln -sf ../KernelSU/kernel drivers/kernelsu
 
