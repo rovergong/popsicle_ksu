@@ -68,17 +68,16 @@ jobs:
           git clone --depth=1 --branch=gki-android16-6.12 https://gitlab.com/simonpunk/susfs4ksu "$SUSFS_DIR"
           echo "SUSFS_DIR=$SUSFS_DIR" >> $GITHUB_ENV
 
-      - name: 添加KernelSU
-        id: ksu_version
+      - name: Setup resukiKSU
         run: |
-          cd kernel_workspace
-          echo "正在配置ReSukiSU..."
-          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s main
-          echo 'CONFIG_KSU_FULL_NAME_FORMAT="%TAG_NAME%-%COMMIT_SHA%@cctv18"' >> ./common/arch/arm64/configs/gki_defconfig
-          cd ./KernelSU
-          KSU_VERSION=$(expr $(git rev-list --count main) + 30700 2>/dev/null || echo 114514)
-          echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
-          echo "ksuver=$KSU_VERSION" >> $GITHUB_OUTPUT
+          cd kernel_workspace/common
+
+          git clone --branch=staging https://github.com/backslashxx/KernelSU.git KernelSU
+          
+          ln -sf ../KernelSU/kernel drivers/kernelsu
+
+          grep -q "kernelsu" drivers/Makefile || echo 'obj-$(CONFIG_KSU) += kernelsu/' >> drivers/Makefile
+          grep -q "kernelsu" drivers/Kconfig || sed -i '/endmenu/i source "drivers/kernelsu/Kconfig"' drivers/Kconfig
 
       - name: 应用 KernelSU & SUSFS 补丁
         run: |
