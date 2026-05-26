@@ -40,7 +40,8 @@ jobs:
           #aria2c -s16 -x16 -k1M "https://github.com/yapixel/gki-build-assets/releases/download/android16-6.12-2025-06/android16-6.12-2025-06.tar.gz" -o common.tar.gz
           #mkdir -p common && tar -xzf common.tar.gz -C common && rm common.tar.gz
 
-          aria2c -s16 -x16 -k1M "https://github.com/yapixel/gki-build-assets/releases/download/android16-6.12-2025-06_r58/common-android16-6.12-2025-06_r58.tar.gz" -o common.tar.gz
+          #aria2c -s16 -x16 -k1M "https://github.com/yapixel/gki-build-assets/releases/download/android16-6.12-2025-06_r58/common-android16-6.12-2025-06_r58.tar.gz" -o common.tar.gz
+          aria2c -s16 -x16 -k1M "https://github.com/rovergong/gki-build/releases/download/gki-6.12-latest/gki-6.12-f01d585ebe1567ed9d53f4de4d703a481dd9e199.tar.gz" -o common.tar.gz
           mkdir -p common && tar -xzf common.tar.gz -C common && rm common.tar.gz
           
           # Clang
